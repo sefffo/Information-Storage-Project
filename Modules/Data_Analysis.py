@@ -1,5 +1,6 @@
 #omar and youssef (Dead Line : Monday )
 import pandas as pd
+import os
 
 def append_run(df, run_info_dict):
     row = pd.DataFrame([run_info_dict])
@@ -8,18 +9,24 @@ def append_run(df, run_info_dict):
     else:
         return pd.concat([df, row], ignore_index=True)
 
-
-def save_report_csv(df, path):
-    df.to_csv(path, index=False)
-    print(f"The Report saved to {path}")
-
+def save_report_csv(df, filename):
+    # Create reports folder if it doesn't exist
+    reports_folder = "reports"
+    if not os.path.exists(reports_folder):
+        os.makedirs(reports_folder)
+        print(f"Created folder: {reports_folder}")
+    
+    # Create full path
+    full_path = os.path.join(reports_folder, filename)
+    
+    # Save the CSV
+    df.to_csv(full_path, index=False)
+    print(f"The Report saved to {full_path}")
 
 fields = ["read_time_ms", "write_time_ms", "read_iops", "write_iops"]
 
-
 def summary_statistics(df):
     stats_rows = []
-
     for field in fields:
         if field in df.columns:
             stats_rows.append({
@@ -41,9 +48,11 @@ def summary_statistics(df):
                 "max": None,
                 "variance": None
             })
-
     return pd.DataFrame(stats_rows)
 
+# Example usage (uncomment to test):
+# save_report_csv(df, "simulation_report.csv")
+# save_report_csv(stats_df, "statistics_report.csv")
 
 
 # Example Runs
