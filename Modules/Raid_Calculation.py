@@ -1,7 +1,4 @@
 #Saif and azoz  (Dead Line : Monday )
-
-
-
 """
 raid_calculations.py
 Implements RAID calculation functions for performance metrics and capacity analysis.
@@ -12,10 +9,7 @@ Functions for Idea 5 (Multimedia Storage Performance Simulator):
 - calculate_storage_overhead(total_bytes, raid_level, num_disks) -> dict
 - estimate_access_time(file_size_bytes, num_disks, raid_level, base_transfer_rate_mbps=100) -> float
 """
-
 import math
-
-
 def usable_capacity_percent(num_disks, raid_level):
     """
     Calculate usable capacity as percentage of raw capacity.
