@@ -154,7 +154,7 @@ def calculate_disk_load_iops(total_iops, read_percent, write_percent, raid_level
 
 
 def calculate_required_disks_for_iops(total_iops, read_percent, write_percent, 
-                                     raid_level, iops_per_disk):
+                                        raid_level, iops_per_disk):
     """
     Calculate number of disks required to handle IOPS workload.
     Uses the disk load formula from sec-5-1.pdf slide 22.

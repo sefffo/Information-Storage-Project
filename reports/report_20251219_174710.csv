@@ -1,2 +1,0 @@
-raid_level,disk_count,total_files,total_size_bytes,read_time_ms,write_time_ms,total_time_ms,usable_%,efficiency_%
-RAID 5,7,5,887407,3030.3030303030305,5416.666666666667,8446.969696969698,85.71428571428571,85.71428571428571
