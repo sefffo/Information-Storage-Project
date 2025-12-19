@@ -110,6 +110,7 @@ def calculate_storage_overhead(total_bytes, raid_level, num_disks):
 
 def estimate_access_time(file_size_bytes, num_disks, raid_level, base_transfer_rate_mbps=100):
     """
+    service time
     Estimate access time for reading/writing files based on RAID level.
     Simplified model considering parallelism and overhead.
     
