@@ -1,230 +1,270 @@
 #!/usr/bin/env python3
 """
-================================================================================
-Data_Analysis.py - Data Collection and Statistical Analysis Module
-================================================================================
+==============================================================================
+Data_Analysis.py - RAID Simulation Data Collection and Statistical Analysis
+==============================================================================
 
 Purpose:
-    This module handles data collection, storage, and statistical analysis
-    for RAID simulation results. It provides functions to:
-    - Append new simulation runs to a DataFrame
-    - Save reports to CSV files
-    - Calculate summary statistics (mean, std, median, min, max, variance)
+--------
+This module provides functions for collecting, storing, and analyzing
+RAID simulation results. It handles:
+  1. Appending simulation run data to pandas DataFrames
+  2. Saving reports to CSV files in the reports directory
+  3. Calculating statistical summaries (mean, std, median, min, max, variance)
+
+The module is designed to work with simulation data from RAID performance
+tests, tracking metrics like read/write times and IOPS across multiple runs.
+
+Key Functions:
+-------------
+- append_run(): Add a new simulation run to the dataset
+- save_report_csv(): Save DataFrame to CSV file
+- summary_statistics(): Calculate statistical measures for performance metrics
 
 Authors: Omar and Youssef
 Deadline: Monday
-Last Updated: December 2024
-
-Dependencies:
-    - pandas: For DataFrame operations and CSV file handling
-    - os: For file system operations
-
-Key Functions:
-    - append_run(): Adds a new simulation run to existing data
-    - save_report_csv(): Saves DataFrame to CSV in reports folder
-    - summary_statistics(): Generates statistical summary of performance metrics
-
-================================================================================
+Version: 1.0
+==============================================================================
 """
 
-# ============================================================================
+# ==============================================================================
 # IMPORTS
-# ============================================================================
+# ==============================================================================
 
 import pandas as pd  # Data manipulation and analysis library
-import os           # Operating system interface for file operations
+import os           # Operating system interface for file/directory operations
 
-# ============================================================================
-# CORE FUNCTIONS
-# ============================================================================
+# ==============================================================================
+# FUNCTION: append_run
+# ==============================================================================
 
 def append_run(df, run_info_dict):
     """
     Appends a new simulation run to the existing DataFrame.
     
-    This function takes simulation results as a dictionary and adds them
-    as a new row to the DataFrame. If the DataFrame doesn't exist (None),
-    it creates a new one.
+    This function takes a dictionary containing simulation metrics and adds it
+    as a new row to the DataFrame. If the DataFrame is None or empty, it creates
+    a new DataFrame with the run data.
     
-    Args:
-        df (pd.DataFrame or None): Existing DataFrame with simulation data.
-                                   Can be None for the first run.
-        run_info_dict (dict): Dictionary containing simulation metrics.
-                             Common keys include:
-                             - raid_level: RAID configuration (str)
-                             - disk_count: Number of disks (int)
-                             - read_time_ms: Read operation time (float)
-                             - write_time_ms: Write operation time (float)
-                             - read_iops: Read IOPS (int)
-                             - write_iops: Write IOPS (int)
-                             - usable_%: Usable capacity percentage (float)
-                             - efficiency_%: Space efficiency percentage (float)
+    Parameters:
+    -----------
+    df : pandas.DataFrame or None
+        Existing DataFrame containing previous simulation runs.
+        Can be None if this is the first run.
+    
+    run_info_dict : dict
+        Dictionary containing simulation metrics. Expected keys may include:
+        - run_id: Unique identifier for the run
+        - raid_level: RAID configuration level (0, 1, 5, etc.)
+        - disk_count: Number of disks in the array
+        - read_time_ms: Read operation time in milliseconds
+        - write_time_ms: Write operation time in milliseconds
+        - read_iops: Read I/O operations per second
+        - write_iops: Write I/O operations per second
+        - total_files: Number of files processed
+        - total_size_bytes: Total data size processed
+        - usable_%: Percentage of usable capacity
+        - efficiency_%: Storage efficiency percentage
     
     Returns:
-        pd.DataFrame: Updated DataFrame containing all simulation runs
-                     including the newly added run.
+    --------
+    pandas.DataFrame
+        Updated DataFrame containing all runs including the new one.
+        If input df was None, returns a new DataFrame with just this run.
     
     Example:
-        >>> df = None  # First run
-        >>> run_data = {"raid_level": "RAID 5", "read_time_ms": 120}
-        >>> df = append_run(df, run_data)
-        >>> # df now contains 1 row
-        >>> run_data2 = {"raid_level": "RAID 0", "read_time_ms": 80}
-        >>> df = append_run(df, run_data2)
-        >>> # df now contains 2 rows
+    --------
+    >>> run1 = {"run_id": 1, "raid_level": 5, "read_time_ms": 120}
+    >>> df = append_run(None, run1)  # First run
+    >>> run2 = {"run_id": 2, "raid_level": 1, "read_time_ms": 140}
+    >>> df = append_run(df, run2)    # Second run appended
+    >>> print(df)
+       run_id  raid_level  read_time_ms
+    0       1           5           120
+    1       2           1           140
     
-    Notes:
-        - This function does NOT modify the original DataFrame
-        - Always reassign the result: df = append_run(df, new_run)
-        - If df is None or empty, returns a new DataFrame with just the new row
+    Technical Notes:
+    ---------------
+    - Creates a new DataFrame from the dictionary with one row
+    - Uses pd.concat() to append rows (more efficient than DataFrame.append())
+    - ignore_index=True resets row indices to sequential integers
+    - Safe to call with None df for initialization
     """
-    # Create a new DataFrame with a single row from the dictionary
-    # The list wrapper [run_info_dict] creates a DataFrame with one row
+    
+    # Convert the run information dictionary to a single-row DataFrame
+    # The list wrapper [run_info_dict] ensures pandas creates one row
     row = pd.DataFrame([run_info_dict])
     
-    # Check if the existing DataFrame is None or empty
+    # Check if this is the first run (df is None or empty)
     if df is None or df.empty:
-        # Return the new row as the complete DataFrame
+        # Return the single row as the new DataFrame
         return row
     else:
-        # Concatenate existing DataFrame with new row
-        # ignore_index=True resets the index to 0, 1, 2, ...
+        # Concatenate existing DataFrame with the new row
+        # ignore_index=True renumbers rows sequentially (0, 1, 2, ...)
         return pd.concat([df, row], ignore_index=True)
 
+# ==============================================================================
+# FUNCTION: save_report_csv
+# ==============================================================================
 
 def save_report_csv(df, filename):
     """
-    Saves a DataFrame to a CSV file in the 'reports' folder.
+    Saves a DataFrame to a CSV file in the reports directory.
     
-    This function ensures the reports folder exists and saves the
-    provided DataFrame to a CSV file with the specified filename.
-    It prints confirmation messages for debugging.
+    This function ensures the reports folder exists and saves the provided
+    DataFrame to a CSV file within that folder. It provides console feedback
+    about the save operation.
     
-    Args:
-        df (pd.DataFrame): DataFrame to save to CSV
-        filename (str): Name of the CSV file (just the filename, not full path)
-                       Example: "simulation_report.csv"
+    Parameters:
+    -----------
+    df : pandas.DataFrame
+        DataFrame containing the data to save.
+        Typically contains simulation runs or statistical summaries.
+    
+    filename : str
+        Name of the CSV file (without path).
+        Examples: "simulation_report.csv", "statistics_report.csv"
+        The file will be saved in the "reports" subfolder.
     
     Returns:
-        None (saves file to disk)
+    --------
+    None
+        Function performs file I/O and prints status messages.
     
     Side Effects:
-        - Creates 'reports' folder if it doesn't exist
-        - Writes CSV file to reports/{filename}
-        - Prints status messages to console
+    ------------
+    - Creates "reports" directory if it doesn't exist
+    - Writes CSV file to disk
+    - Prints confirmation messages to console
     
     Example:
-        >>> df = pd.DataFrame({"raid_level": ["RAID 0", "RAID 5"]})
-        >>> save_report_csv(df, "my_simulation.csv")
-        Created folder: reports  # (only if folder didn't exist)
-        The Report saved to reports/my_simulation.csv
+    --------
+    >>> df = pd.DataFrame({"metric": ["read_time"], "value": [120]})
+    >>> save_report_csv(df, "test_report.csv")
+    The Report saved to reports/test_report.csv
     
-    Notes:
-        - CSV is saved without the DataFrame index (index=False)
-        - Existing files with the same name will be overwritten
-        - File encoding is UTF-8 by default
+    File Format:
+    -----------
+    - CSV format with comma separator
+    - No row indices included (index=False)
+    - Headers included as first row
+    - UTF-8 encoding
     """
-    # Define the reports folder name
+    
+    # Define the name of the reports folder
     reports_folder = "reports"
     
-    # Check if the reports folder exists
+    # Check if reports folder exists
     if not os.path.exists(reports_folder):
         # Create the folder if it doesn't exist
         os.makedirs(reports_folder)
         print(f"Created folder: {reports_folder}")
     
     # Construct the full file path by joining folder and filename
-    # Example: "reports" + "/" + "simulation_report.csv" = "reports/simulation_report.csv"
+    # Example: "reports" + "simulation_report.csv" = "reports/simulation_report.csv"
     full_path = os.path.join(reports_folder, filename)
     
-    # Save the DataFrame to CSV
-    # index=False: Don't save the row numbers as a column
+    # Save the DataFrame to CSV file
+    # index=False: Don't include row numbers in the CSV
     df.to_csv(full_path, index=False)
     
-    # Print confirmation message
+    # Print confirmation message with the full path
     print(f"The Report saved to {full_path}")
 
+# ==============================================================================
+# PERFORMANCE METRICS CONFIGURATION
+# ==============================================================================
 
-# ============================================================================
-# STATISTICAL ANALYSIS
-# ============================================================================
-
-# List of performance metrics to analyze
-# These fields are expected in the simulation results DataFrame
+# List of performance fields to calculate statistics for
+# These are the key metrics tracked across simulation runs
 fields = [
     "read_time_ms",   # Read operation time in milliseconds
     "write_time_ms",  # Write operation time in milliseconds
-    "read_iops",      # Read Input/Output Operations Per Second
-    "write_iops"      # Write Input/Output Operations Per Second
+    "read_iops",      # Read I/O operations per second
+    "write_iops"      # Write I/O operations per second
 ]
+
+# ==============================================================================
+# FUNCTION: summary_statistics
+# ==============================================================================
 
 def summary_statistics(df):
     """
-    Calculates comprehensive summary statistics for performance metrics.
+    Calculates comprehensive statistical summaries for performance metrics.
     
-    This function computes statistical measures (mean, standard deviation,
-    median, min, max, variance) for each performance metric in the DataFrame.
-    If a metric doesn't exist in the DataFrame, it returns None values.
+    This function computes six key statistical measures for each performance
+    metric in the fields list:
+    - Mean (average value)
+    - Standard Deviation (measure of spread)
+    - Median (middle value)
+    - Minimum (lowest value)
+    - Maximum (highest value)
+    - Variance (square of standard deviation)
     
-    Args:
-        df (pd.DataFrame): DataFrame containing simulation results.
-                          Should have columns matching the 'fields' list.
+    These statistics help analyze the consistency and range of RAID
+    performance across multiple simulation runs.
+    
+    Parameters:
+    -----------
+    df : pandas.DataFrame
+        DataFrame containing simulation run data.
+        Should include columns matching the names in the 'fields' list.
+        May have additional columns which will be ignored.
     
     Returns:
-        pd.DataFrame: Summary statistics DataFrame with columns:
-                     - metric: Name of the performance metric (str)
-                     - mean: Average value (float)
-                     - std: Standard deviation (float)
-                     - median: Middle value (float)
-                     - min: Minimum value (float)
-                     - max: Maximum value (float)
-                     - variance: Statistical variance (float)
+    --------
+    pandas.DataFrame
+        DataFrame with one row per metric containing:
+        - metric: Name of the performance metric
+        - mean: Average value across all runs
+        - std: Standard deviation (measure of variability)
+        - median: Middle value when sorted
+        - min: Minimum value observed
+        - max: Maximum value observed
+        - variance: Square of standard deviation
     
     Example:
-        >>> df = pd.DataFrame({
-        ...     "read_time_ms": [100, 120, 110],
-        ...     "write_time_ms": [200, 210, 205]
-        ... })
-        >>> stats = summary_statistics(df)
-        >>> print(stats)
-               metric   mean   std  median  min  max  variance
-        0  read_time_ms  110.0  10.0   110.0  100  120     100.0
-        1 write_time_ms  205.0   5.0   205.0  200  210      25.0
-        2    read_iops   None  None    None None None      None
-        3   write_iops   None  None    None None None      None
+    --------
+    >>> runs = pd.DataFrame({
+    ...     "read_time_ms": [120, 130, 125],
+    ...     "write_time_ms": [210, 220, 215]
+    ... })
+    >>> stats = summary_statistics(runs)
+    >>> print(stats)
+              metric   mean       std  median  min  max  variance
+    0  read_time_ms  125.0  5.000000   125.0  120  130     25.00
+    1 write_time_ms  215.0  5.000000   215.0  210  220     25.00
     
-    Statistical Measures Explained:
-        - mean: Average of all values
-        - std: How spread out the values are from the mean
-        - median: Middle value when sorted
-        - min: Smallest value
-        - max: Largest value
-        - variance: Square of standard deviation (measure of spread)
-    
-    Notes:
-        - Returns None for metrics not present in the DataFrame
-        - Uses pandas built-in statistical functions
-        - All calculations handle NaN values appropriately
+    Technical Notes:
+    ---------------
+    - If a metric is not in the DataFrame, all statistics will be None
+    - Uses pandas built-in statistical functions for accuracy
+    - Variance is calculated as std²
+    - Returns None for metrics with insufficient data
     """
+    
     # Initialize empty list to store statistics for each metric
     stats_rows = []
     
-    # Iterate through each performance metric
+    # Iterate through each performance metric we want to analyze
     for field in fields:
+        
         # Check if this metric exists as a column in the DataFrame
         if field in df.columns:
-            # Calculate all statistics for this metric and store in dictionary
+            # Calculate all statistics for this metric
             stats_rows.append({
-                "metric": field,                # Name of the metric
-                "mean": df[field].mean(),       # Calculate average
-                "std": df[field].std(),         # Calculate standard deviation
-                "median": df[field].median(),   # Calculate median (middle value)
-                "min": df[field].min(),         # Find minimum value
-                "max": df[field].max(),         # Find maximum value
-                "variance": df[field].var()     # Calculate variance
+                "metric": field,                    # Name of the metric
+                "mean": df[field].mean(),          # Average value
+                "std": df[field].std(),            # Standard deviation (spread)
+                "median": df[field].median(),      # Middle value
+                "min": df[field].min(),            # Minimum value
+                "max": df[field].max(),            # Maximum value
+                "variance": df[field].var()        # Variance (std squared)
             })
         else:
-            # Metric doesn't exist in DataFrame, return None for all statistics
+            # Metric not found in DataFrame - add row with None values
+            # This ensures the output always has entries for all expected metrics
             stats_rows.append({
                 "metric": field,
                 "mean": None,
@@ -238,89 +278,73 @@ def summary_statistics(df):
     # Convert list of dictionaries to DataFrame and return
     return pd.DataFrame(stats_rows)
 
-
-# ============================================================================
+# ==============================================================================
 # EXAMPLE USAGE AND TESTING
-# ============================================================================
+# ==============================================================================
 
-# Example simulation runs for testing
-# These demonstrate the expected data structure
+if __name__ == "__main__":
+    """
+    Example usage demonstrating the module's functions.
+    This code runs when the module is executed directly (not imported).
+    """
+    
+    # Example Simulation Run 1: RAID 5 with 4 disks
+    run1 = {
+        "run_id": 1,              # Unique identifier for this run
+        "raid_level": 5,          # RAID 5 configuration
+        "disk_count": 4,          # 4 disks in the array
+        "read_time_ms": 120,      # Read took 120 milliseconds
+        "write_time_ms": 210,     # Write took 210 milliseconds
+        "read_iops": 380,         # 380 read operations per second
+        "write_iops": 220         # 220 write operations per second
+    }
 
-# Run 1: RAID 5 with 4 disks
-run1 = {
-    "run_id": 1,              # Unique identifier for this run
-    "raid_level": 5,          # RAID 5 configuration
-    "disk_count": 4,          # 4 disks in the array
-    "read_time_ms": 120,      # Read operation took 120ms
-    "write_time_ms": 210,     # Write operation took 210ms
-    "read_iops": 380,         # 380 read operations per second
-    "write_iops": 220         # 220 write operations per second
-}
+    # Example Simulation Run 2: RAID 10 with 8 disks
+    run2 = {
+        "run_id": 2,
+        "raid_level": 10,         # RAID 10 configuration
+        "disk_count": 8,          # 8 disks (more expensive but faster)
+        "read_time_ms": 130,
+        "write_time_ms": 220,
+        "read_iops": 390,
+        "write_iops": 230
+    }
+    
+    # Example Simulation Run 3: RAID 3 with 6 disks
+    run3 = {
+        "run_id": 3,
+        "raid_level": 3,
+        "disk_count": 6,
+        "read_time_ms": 175,
+        "write_time_ms": 225,
+        "read_iops": 380,
+        "write_iops": 275
+    }
 
-# Run 2: RAID 10 with 8 disks
-run2 = {
-    "run_id": 2,              # Unique identifier
-    "raid_level": 10,         # RAID 10 configuration (RAID 1+0)
-    "disk_count": 8,          # 8 disks in the array
-    "read_time_ms": 130,      # Slightly slower read
-    "write_time_ms": 220,     # Slightly slower write
-    "read_iops": 390,         # Higher read IOPS
-    "write_iops": 230         # Higher write IOPS
-}
+    # Initialize empty DataFrame
+    df = None
 
-# Run 3: RAID 3 with 6 disks
-run3 = {
-    "run_id": 3,              # Unique identifier
-    "raid_level": 3,          # RAID 3 configuration
-    "disk_count": 6,          # 6 disks in the array
-    "read_time_ms": 175,      # Slower read time
-    "write_time_ms": 225,     # Slower write time
-    "read_iops": 380,         # Standard read IOPS
-    "write_iops": 275         # Higher write IOPS
-}
+    # Add runs to DataFrame one by one
+    df = append_run(df, run1)  # First run creates the DataFrame
+    df = append_run(df, run2)  # Second run appends to existing DataFrame
+    df = append_run(df, run3)  # Third run appends
 
-# Initialize DataFrame as None (empty)
-df = None
+    # Display the main DataFrame with all runs
+    print("\n=== Main DataFrame ===")
+    print(df)
 
-# Add first run to DataFrame (creates new DataFrame)
-df = append_run(df, run1)
+    # Calculate statistical summary
+    stats_df = summary_statistics(df)
+    
+    # Display the statistics DataFrame
+    print("\n=== Statistics DataFrame ===")
+    print(stats_df)
 
-# Add second run to DataFrame (appends to existing)
-df = append_run(df, run2)
-
-# Display the main DataFrame with all runs
-print("\n=== Main DataFrame ===")
-print(df)
-
-# Generate and display statistical summary
-print("\n=== Statistics DataFrame ===")
-stats_df = summary_statistics(df)
-print(stats_df)
-
-# Save both DataFrames to CSV files in the reports folder
-save_report_csv(df, "simulation_report.csv")
-save_report_csv(stats_df, "statistics_report.csv")
-
-# ============================================================================
-# NOTES FOR DEVELOPERS
-# ============================================================================
-"""
-Usage in Main Application:
-    1. Create empty DataFrame: df = None
-    2. For each simulation:
-       - Collect metrics in a dictionary
-       - Append to DataFrame: df = append_run(df, metrics)
-    3. Generate statistics: stats = summary_statistics(df)
-    4. Save results: save_report_csv(df, "report.csv")
-
-Best Practices:
-    - Always reassign the result of append_run()
-    - Use consistent key names in run dictionaries
-    - Check for None/empty DataFrame before processing
-    - Create reports folder at application startup
-
-Error Handling:
-    - pandas handles missing columns gracefully (returns None)
-    - File operations may raise IOError if disk is full
-    - Consider adding try-except blocks in production code
-"""
+    # Save both DataFrames to CSV files
+    save_report_csv(df, "simulation_report.csv")
+    save_report_csv(stats_df, "statistics_report.csv")
+    
+    print("\n=== Files saved successfully ===")
+    print("Check the 'reports' folder for:")
+    print("  - simulation_report.csv (raw data)")
+    print("  - statistics_report.csv (summary stats)")
