@@ -1,2 +1,0 @@
-Parity for backend cerificate.jpg
-Data on disk 0
