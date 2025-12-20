@@ -13,7 +13,7 @@ This application allows users to:
 6. Calculate disk requirements using proper formulas from course materials
 
 Author: Information Storage Project Team
-Date: 2024
+Date: 2025
 Updated: December 2025 - Added disk performance calculations from sec-2-1.pdf
 """
 
@@ -26,7 +26,9 @@ import sys          # System-specific parameters and functions
 import os           # Operating system interface for file/directory operations
 import shutil       # High-level file operations (copy, move, archive)
 import math         # Mathematical functions
-
+import threading
+from queue import Queue
+from concurrent.futures import ThreadPoolExecutor, as_completed
 # Path handling and datetime
 from pathlib import Path            # Object-oriented filesystem paths
 from datetime import datetime       # Date and time manipulation
@@ -279,49 +281,128 @@ def calculate_raid_iops_with_workload(num_disks, raid_level, iops_per_disk, read
 # SECTION 7: VIRTUAL DISK BUILDER FUNCTION
 # ============================================================================
 
-def build_virtual_disks(raid, num, files, ts):
+def build_virtual_disks(raid, num, files, ts, max_workers=4):
     """
-    Creates virtual disk structure simulating RAID data distribution.
+    Creates virtual disk structure simulating RAID data distribution using multi-threading.
+    
+    Args:
+        raid: RAID level string
+        num: Number of disks
+        files: List of file paths to distribute
+        ts: Timestamp string
+        max_workers: Number of threads for parallel file copying (default: 4)
+    
+    Returns:
+        Tuple of (virtual_disks_folder_path, zip_archive_path)
     """
     base = REPORTS_DIR / f"virtual_disks_{ts}" / raid.replace(" ", "_")
     disks = {i: base / f"disk_{i}" for i in range(num)}
     
+    # Create all disk directories
     for d in disks.values():
         d.mkdir(parents=True, exist_ok=True)
     
+    # Thread-safe disk load tracking
     disk_loads = {i: 0 for i in range(num)}
+    disk_loads_lock = threading.Lock()
+    
+    # Determine file distribution (which file goes to which disk)
+    file_distribution = []
     
     for idx, f in enumerate(files):
         size = os.path.getsize(f)
         
         if raid == "RAID 1":
+            # RAID 1: Copy to all disks
             targets = list(disks.keys())
         else:
+            # RAID 0 and RAID 5: Use load balancing
             candidates = [
                 d for d in range(num)
                 if (raid != "RAID 5" or d != (idx % num))
             ]
             target = min(candidates, key=lambda x: disk_loads[x])
             targets = [target]
-
+        
+        # Update disk loads for planning
         for t in targets:
-            shutil.copy2(f, disks[t])
             disk_loads[t] += size
         
-        if raid == "RAID 5":
-            p_disk = idx % num
-            (disks[p_disk] / f"{Path(f).stem}_PARITY.txt").write_text(
-                f"Parity for {Path(f).name}\nData on disk {targets[0]}"
-            )
-
+        # Store file distribution info
+        file_distribution.append({
+            "file_path": f,
+            "targets": targets,
+            "idx": idx,
+            "size": size
+        })
+    
+    # ========================================================================
+    # Multi-threaded file copying
+    # ========================================================================
+    
+    def copy_file_to_disks(file_info):
+        """Worker function to copy a single file to its target disk(s)."""
+        f = file_info["file_path"]
+        targets = file_info["targets"]
+        idx = file_info["idx"]
+        
+        try:
+            # Copy file to each target disk
+            for t in targets:
+                shutil.copy2(f, disks[t])
+            
+            # Create RAID 5 parity placeholder
+            if raid == "RAID 5":
+                p_disk = idx % num
+                parity_file = disks[p_disk] / f"{Path(f).stem}_PARITY.txt"
+                parity_file.write_text(
+                    f"Parity for {Path(f).name}\nData on disk {targets[0]}"
+                )
+            
+            return True, f
+        except Exception as e:
+            return False, f"Error copying {f}: {str(e)}"
+    
+    # Execute file copying in parallel using ThreadPoolExecutor
+    print(f"Starting multi-threaded file distribution ({max_workers} workers)...")
+    
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Submit all copy tasks
+        futures = {
+            executor.submit(copy_file_to_disks, file_info): file_info 
+            for file_info in file_distribution
+        }
+        
+        # Track progress
+        completed = 0
+        total = len(futures)
+        
+        for future in as_completed(futures):
+            success, result = future.result()
+            completed += 1
+            
+            if not success:
+                print(f"⚠️  {result}")
+            
+            # Progress indicator
+            if completed % 10 == 0 or completed == total:
+                print(f"Progress: {completed}/{total} files distributed")
+    
+    print(f"✅ All {total} files distributed successfully!")
+    
+    # ========================================================================
+    # Create ZIP archive
+    # ========================================================================
+    
+    print("Creating ZIP archive...")
     zip_path = shutil.make_archive(
         str(base.parent / base.name),
         "zip",
         base
     )
+    print(f"✅ ZIP archive created: {os.path.basename(zip_path)}")
     
     return str(base), zip_path
-
 
 # ============================================================================
 # SECTION 8: MAIN SIMULATION RUNNER FUNCTION (ENHANCED!)
