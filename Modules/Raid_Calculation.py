@@ -264,7 +264,6 @@ def calculate_storage_overhead(total_bytes, raid_level, num_disks):
         total_bytes: Total size of data to store
         raid_level: RAID level string
         num_disks: Number of disks
-    
     Returns:
         Dictionary with:
         - usable_bytes: Data that can be stored
